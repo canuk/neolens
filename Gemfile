@@ -9,3 +9,4 @@ gem 'dotenv'
 gem 'rack'
 
 gem "rackup", "~> 2.1"
+gem 'sinatra-cors'
