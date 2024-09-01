@@ -7,3 +7,5 @@ gem 'json'
 gem 'puma'  # or another web server of your choice
 gem 'dotenv'
 gem 'rack'
+
+gem "rackup", "~> 2.1"
