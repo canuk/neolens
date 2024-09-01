@@ -106,6 +106,9 @@ async function sendMessage() {
             const result = await response.json();
             loadingMessage.remove();
             addMessage(result.response, ['received']);
+            setTimeout(() => {
+                addMessage(`<a href='https://player.onirix.com/exp/evm910'>Tap to view Augmented Instructions</a>`, 'received');
+            }, 1500);               
         } catch (error) {
             console.error('Error querying Pinecone Assistant:', error);
             loadingMessage.remove();
