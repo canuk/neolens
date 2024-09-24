@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <title>Camera Object Detection with Feature Matching</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; padding-top: 40px; padding-bottom: 40px; }
+        .container { max-width: 720px; }
+        video { width: 100%; height: auto; border-radius: 8px; }
+        canvas { display: none; }
+        #image-preview { max-width: 100%; height: auto; margin-top: 20px; border-radius: 8px; }
+        #output { font-size: 1.25rem; font-weight: bold; margin-top: 20px; }
+        #video-container { position: relative; }
+        #loading { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1.5rem; color: white; text-align: center; }
+        .loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #007bff; width: 30px; height: 30px; animation: spin 2s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #bounding-box { position: absolute; border: 2px solid green; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container text-center">
+    <h1 class="mb-4">Camera Object Detection</h1>
+    <p class="lead">Upload a PNG image of the object you want to detect:</p>
+    <div class="mb-3">
+        <input type="file" class="form-control" id="upload-image" accept="image/png" />
+    </div>
+    <img id="image-preview" class="img-fluid" alt="Uploaded Image Preview">
+    <div id="video-container" class="mt-4 position-relative">
+        <video id="video" autoplay playsinline class="border border-2 shadow-sm"></video>
+        <div id="loading">
+            <div class="loader"></div>
+            <p>Detecting...</p>
+        </div>
+        <div id="bounding-box"></div>
+    </div>
+    <div id="output" class="text-muted">Looking for object...</div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
+<script>
+    let video = document.getElementById('video');
+    let canvas = document.getElementById('canvas');
+    let ctx = canvas.getContext('2d');
+    let objectImage = null;
+    let objectKeypoints = null;
+    let objectDescriptors = null;
+    let boundingBox = document.getElementById('bounding-box');
+    let searching = false;
+
+    let detector = null;
+
+    // Start camera feed with permission handling for Mobile Safari
+    function startCamera() {
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .then(stream => { video.srcObject = stream; })
+            .catch(err => {
+                console.error("Error accessing the camera: " + err);
+                alert('Camera permission is required to use this feature.');
+            });
+    }
+
+    // Load and process uploaded image using ORB feature matching
+    document.getElementById('upload-image').addEventListener('change', function(event) {
+        let file = event.target.files[0];
+        let img = document.createElement('img');
+        let reader = new FileReader();
+        reader.onload = function(e) {
+            img.src = e.target.result;
+            document.getElementById('image-preview').src = e.target.result;
+            document.getElementById('image-preview').style.display = 'block';
+
+            img.onload = function() {
+                // Set up OpenCV mats for the uploaded image
+                objectImage = cv.imread(img);
+                let grayObject = new cv.Mat();
+                cv.cvtColor(objectImage, grayObject, cv.COLOR_RGBA2GRAY, 0);
+
+                // Detect ORB keypoints and descriptors
+                detector = new cv.ORB();
+                objectKeypoints = new cv.KeyPointVector();
+                objectDescriptors = new cv.Mat();
+                detector.detectAndCompute(grayObject, new cv.Mat(), objectKeypoints, objectDescriptors);
+
+                console.log("Object keypoints detected: " + objectKeypoints.size());
+                searching = true;
+                grayObject.delete();
+            };
+        };
+        reader.readAsDataURL(file);
+    });
+
+    // Detect object using ORB feature matching with improved filtering
+    function detectObject() {
+        if (!searching || !objectKeypoints || !objectDescriptors) {
+            requestAnimationFrame(detectObject);
+            return;
+        }
+
+        // Capture the current frame from the video
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        let frame = cv.imread(canvas);
+        let grayFrame = new cv.Mat();
+        cv.cvtColor(frame, grayFrame, cv.COLOR_RGBA2GRAY, 0);
+
+        // Detect keypoints and compute descriptors for the current frame
+        let frameKeypoints = new cv.KeyPointVector();
+        let frameDescriptors = new cv.Mat();
+        detector.detectAndCompute(grayFrame, new cv.Mat(), frameKeypoints, frameDescriptors);
+
+        // Perform feature matching using BFMatcher
+        let bf = new cv.BFMatcher(cv.NORM_HAMMING, false);
+        let matches = new cv.DMatchVectorVector(); // Change to DMatchVectorVector for knnMatch
+        bf.knnMatch(objectDescriptors, frameDescriptors, matches, 2); // Perform k-NN matching
+
+        console.log("Raw matches found: " + matches.size());
+
+        // Apply Lowe's ratio test to filter out weak matches
+        let goodMatches = [];
+        for (let i = 0; i < matches.size(); i++) {
+            let match = matches.get(i);
+            if (match.size() >= 2 && match.get(0).distance < 0.85 * match.get(1).distance) {
+                goodMatches.push(match.get(0));
+            }
+        }
+
+        console.log("Good matches found: " + goodMatches.length);
+
+        // Only consider the object as detected if there are enough good matches
+        if (goodMatches.length > 10) {  // Adjust threshold based on your need
+            // Extract good match points
+            let srcPoints = [];
+            let dstPoints = [];
+
+            for (let i = 0; i < goodMatches.length; i++) {
+                let match = goodMatches[i];
+                srcPoints.push(objectKeypoints.get(match.queryIdx).pt);
+                dstPoints.push(frameKeypoints.get(match.trainIdx).pt);
+            }
+
+            // Use homography to filter out false positives
+            let homographyMask = new cv.Mat();
+            let srcMat = cv.matFromArray(srcPoints.length, 1, cv.CV_32FC2, srcPoints.flat());
+            let dstMat = cv.matFromArray(dstPoints.length, 1, cv.CV_32FC2, dstPoints.flat());
+            let H = cv.findHomography(srcMat, dstMat, cv.RANSAC, 10, homographyMask);
+
+            let maskArray = homographyMask.data;
+            let goodMatchCount = maskArray.reduce((count, val) => count + val, 0);
+
+            console.log("Good matches after homography: " + goodMatchCount);
+
+            if (goodMatchCount > 10) {
+                boundingBox.style.display = 'block';
+                boundingBox.style.width = '150px';
+                boundingBox.style.height = '150px';
+                boundingBox.style.left = '50%';
+                boundingBox.style.top = '50%';
+
+                document.getElementById('output').innerText = 'Object found!';
+                document.getElementById('output').classList.remove('text-muted');
+                document.getElementById('output').classList.add('text-success');
+            } else {
+                boundingBox.style.display = 'none';
+                document.getElementById('output').innerText = 'Object not found.';
+                document.getElementById('output').classList.remove('text-success');
+                document.getElementById('output').classList.add('text-muted');
+            }
+
+            srcMat.delete();
+            dstMat.delete();
+            H.delete();
+            homographyMask.delete();
+        } else {
+            boundingBox.style.display = 'none';
+            document.getElementById('output').innerText = 'Object not found.';
+            document.getElementById('output').classList.remove('text-success');
+            document.getElementById('output').classList.add('text-muted');
+        }
+
+        frame.delete();
+        grayFrame.delete();
+        frameKeypoints.delete();
+        frameDescriptors.delete();
+        matches.delete();  // Remember to delete matches
+        requestAnimationFrame(detectObject);
+    }
+
+    function onOpenCvReady() {
+        startCamera();
+        requestAnimationFrame(detectObject);
+    }
+</script>
+
+</body>
+</html>

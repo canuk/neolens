@@ -190,6 +190,13 @@ body, html {
 } 
 
 .message.loading {
+    width: 40px;
+    height: 40px;
+    max-width: 70%;
+    margin-bottom: 5px;
+    padding: 5px;
+    border-radius: 20px;
+    clear: both;    
     font-style: italic;
     color: #888;
 }
@@ -197,3 +204,67 @@ body, html {
 .message.error {
 color: #ff0000;
 }
+
+/* Existing styles */
+/* ... */
+
+/* Dot Flashing Animation */
+.dot-flashing {
+    position: relative;
+    width: 10px;
+    height: 10px;
+    border-radius: 5px;
+    background-color: #9880ff;
+    color: #9880ff;
+    animation: dot-flashing 1s infinite linear alternate;
+    animation-delay: 0.5s;
+  }
+  
+  .dot-flashing::before, .dot-flashing::after {
+    content: '';
+    display: inline-block;
+    position: absolute;
+    top: 0;
+  }
+  
+  .dot-flashing::before {
+    left: -15px;
+    width: 10px;
+    height: 10px;
+    border-radius: 5px;
+    background-color: #9880ff;
+    color: #9880ff;
+    animation: dot-flashing 1s infinite alternate;
+    animation-delay: 0s;
+  }
+  
+  .dot-flashing::after {
+    left: 15px;
+    width: 10px;
+    height: 10px;
+    border-radius: 5px;
+    background-color: #9880ff;
+    color: #9880ff;
+    animation: dot-flashing 1s infinite alternate;
+    animation-delay: 1s;
+  }
+  
+  @keyframes dot-flashing {
+    0% {
+      background-color: #9880ff;
+    }
+    50%, 100% {
+      background-color: rgba(152, 128, 255, 0.2);
+    }
+  }
+  
+  /* Adjust the loading message style */
+  .message.loading {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+  }
+  
+  .message.loading .dot-flashing {
+    margin-left: 10px;
+  }

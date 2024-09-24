@@ -21,3 +21,5 @@ Thumbs.db
 
 # Ignore Ruby version file
 .ruby-version
+
+/node_modules

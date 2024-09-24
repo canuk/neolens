@@ -4,7 +4,6 @@ let canvasElement, canvas;
 let video, outputData, messageInput, sendButton, chatMessages;
 
 // Functions
-
 function showPage(pageId) {
     console.log('Showing page:', pageId);
     document.querySelectorAll('.page').forEach(page => {
@@ -23,12 +22,28 @@ function showPage(pageId) {
         stopCamera();
     }
 
-    if (pageId === 'chatPage') {
+    if (pageId === 'chatPage' && chatMessages) {
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 }
 
+function stopCamera() {
+    if (video && video.srcObject) {
+        const tracks = video.srcObject.getTracks();
+        tracks.forEach(track => track.stop());
+        video.srcObject = null;
+    }
+}
+
 function startCamera() {
+    if (!video) {
+        video = document.getElementById('qrVideo');
+        if (!video) {
+            console.error('QR video element not found');
+            return;
+        }
+    }
+
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
     .then(function(stream) {
         video.srcObject = stream;
@@ -38,14 +53,10 @@ function startCamera() {
     })
     .catch(function(error) {
         console.error('Error accessing the camera:', error);
-        outputData.innerText = 'Error accessing the camera. Please check permissions.';
+        if (outputData) {
+            outputData.innerText = 'Error accessing the camera. Please check permissions.';
+        }
     });
-}
-
-function stopCamera() {
-    if (video.srcObject) {
-        video.srcObject.getTracks().forEach(track => track.stop());
-    }
 }
 
 function tick() {
@@ -64,9 +75,9 @@ function tick() {
 
         if (code) {
             outputData.innerText = `QR Code detected: ${code.data}`;
-            if (code.data === "La Crosse Technology Model: 617-1485") {
+            if (code.data === "DJI Mavic Air") {
                 showPage('chatPage');
-                initializeChatForClock();
+                initializeChat();
             }
         } else {
             outputData.innerText = "No QR Code detected";
@@ -77,9 +88,9 @@ function tick() {
     }
 }
 
-function initializeChatForClock() {
+function initializeChat() {
     chatMessages.innerHTML = '';
-    addMessage("Hello! I've detected that you're asking about the La Crosse Technology Model: 617-1485 Atomic Alarm Clock. How can I assist you with this device?", 'received');
+    addMessage("Hello! I've detected that you're asking about the <em>DJI Mavic Air</em> Drone. How can I assist you with this device?", 'received');
 }
 
 async function sendMessage() {
@@ -88,7 +99,10 @@ async function sendMessage() {
         addMessage(message, ['sent']);
         messageInput.value = '';
         
-        const loadingMessage = addMessage('Thinking...', ['received', 'loading']);
+        const loadingMessage = addMessage('', ['received', 'loading']);
+        const dotFlashing = document.createElement('div');
+        dotFlashing.className = 'dot-flashing';
+        loadingMessage.appendChild(dotFlashing);
         
         try {
             const response = await fetch('/chat', {
@@ -107,7 +121,7 @@ async function sendMessage() {
             loadingMessage.remove();
             addMessage(result.response, ['received']);
             setTimeout(() => {
-                addMessage(`<a href='https://player.onirix.com/exp/evm910'>Tap to view Augmented Instructions</a>`, 'received');
+                addMessage(`<a href='/aframe.html'>Tap to view Augmented Instructions</a>`, 'received');
             }, 1500);               
         } catch (error) {
             console.error('Error querying Pinecone Assistant:', error);
@@ -129,8 +143,10 @@ function addMessage(text, classes) {
         messageElement.classList.add(classes.trim());
     }
     
-    const htmlContent = DOMPurify.sanitize(marked.parse(text));
-    messageElement.innerHTML = htmlContent;
+    if (!classes.includes('loading')) {
+        const htmlContent = DOMPurify.sanitize(marked.parse(text));
+        messageElement.innerHTML = htmlContent;
+    }
     
     chatMessages.appendChild(messageElement);
     chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -148,7 +164,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelector('#footer .fa-home').addEventListener('click', () => showPage('homePage'));
     document.querySelector('#footer .fa-qrcode').addEventListener('click', () => showPage('qrPage'));
     document.querySelector('#footer .fa-comments').addEventListener('click', () => showPage('chatPage'));
-    document.querySelector('#footer .fa-cog').addEventListener('click', () => showPage('settingsPage'));
+    document.querySelector('#footer .fa-vr-cardboard').addEventListener('click', () => showPage('arPage'));
 
     sendButton.addEventListener('click', sendMessage);
     messageInput.addEventListener('keypress', function(e) {

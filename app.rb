@@ -17,6 +17,14 @@ get '/' do
   send_file File.join(settings.public_folder, 'index.html')
 end
 
+get '/aframe' do
+  send_file File.join(settings.public_folder, 'aframe.html')
+end
+
+get '/ar-studio' do
+  send_file File.join(settings.public_folder, '/ar-studio/index.html')
+end
+
 post '/chat' do
   content_type :json
   message = JSON.parse(request.body.read)['message']

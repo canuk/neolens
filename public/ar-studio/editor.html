@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Meta tags -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+  <title>AR Studio Editor</title>
+  <!-- Bootstrap CSS -->
+  <link
+    rel="stylesheet"
+    href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+  >
+  <!-- Custom CSS -->
+  <link href="/ar-studio/css/styles.css" rel="stylesheet">
+
+  <!-- A-Frame and A-Frame Inspector Scripts -->
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script src="https://unpkg.com/aframe-inspector/dist/aframe-inspector.min.js"></script>
+</head>
+<body>
+  <!-- Navigation Bar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <a class="navbar-brand" href="index.html">AR Studio</a>
+    <button class="btn btn-success ml-auto" id="save-button">Save</button>
+  </nav>
+
+  <!-- Scene Container -->
+  <div id="scene-container"></div>
+
+  <!-- jQuery -->
+  <script
+    src="https://code.jquery.com/jquery-3.5.1.min.js"
+    crossorigin="anonymous"
+  ></script>
+
+  <!-- Custom JS -->
+  <script>
+    // IndexedDB variables
+    let db;
+    const dbName = 'ARStudioDB';
+    const dbVersion = 1;
+
+    // Open (or create) the database
+    const request = indexedDB.open(dbName, dbVersion);
+
+    request.onsuccess = function (event) {
+      db = event.target.result;
+      console.log('IndexedDB opened successfully.');
+      // Load the project after the database is ready
+      loadProject();
+    };
+
+    request.onerror = function (event) {
+      console.error('IndexedDB error:', event.target.errorCode);
+    };
+
+    let project;
+
+    function loadProject() {
+      const params = new URLSearchParams(window.location.search);
+      const projectId = params.get('id');
+
+      const transaction = db.transaction(['projects'], 'readonly');
+      const objectStore = transaction.objectStore('projects');
+      const request = objectStore.get(projectId);
+
+      request.onsuccess = function (event) {
+        project = event.target.result;
+        if (project) {
+          const modelName = project.modelName;
+          const modelExtension = modelName.split('.').pop().toLowerCase();
+
+          // Load the model data
+          let modelSrc;
+          if (modelExtension === 'glb') {
+            const blob = new Blob([project.modelData], { type: 'model/gltf-binary' });
+            modelSrc = URL.createObjectURL(blob);
+          } else {
+            // For other formats, use Data URL
+            modelSrc = project.modelData;
+          }
+
+          // If sceneData exists, use it; otherwise, create a default scene
+          if (project.sceneData) {
+            createScene(project.sceneData, modelSrc, modelExtension);
+          } else {
+            const defaultSceneData = {
+              entities: [
+                {
+                  id: 'model-entity',
+                  components: {
+                    position: '0 1.6 -2',
+                    rotation: '0 0 0',
+                    scale: '1 1 1',
+                  },
+                },
+                // Camera and lights can also be added here
+              ],
+            };
+            createScene(defaultSceneData, modelSrc, modelExtension);
+          }
+        } else {
+          alert('Project not found');
+          window.location.href = 'index.html';
+        }
+      };
+
+      request.onerror = function (event) {
+        console.error('Error loading project:', event.target.errorCode);
+      };
+    }
+
+    function createScene(sceneData, modelSrc, modelExtension) {
+      // Create the scene element
+      const sceneEl = document.createElement('a-scene');
+      sceneEl.setAttribute('embedded', '');
+      sceneEl.style.height = '100vh';
+
+      // Create assets
+      const assetsEl = document.createElement('a-assets');
+      sceneEl.appendChild(assetsEl);
+
+      // Add model asset
+      const modelAssetEl = document.createElement('a-asset-item');
+      modelAssetEl.setAttribute('id', 'model-asset');
+      modelAssetEl.setAttribute('src', modelSrc);
+      assetsEl.appendChild(modelAssetEl);
+
+      // Create entities from scene data
+      sceneData.entities.forEach((entityData) => {
+        const entityEl = document.createElement('a-entity');
+        if (entityData.id) {
+          entityEl.setAttribute('id', entityData.id);
+        }
+        // Set components
+        for (const [componentName, componentValue] of Object.entries(entityData.components)) {
+          entityEl.setAttribute(componentName, componentValue);
+        }
+        sceneEl.appendChild(entityEl);
+      });
+
+      // Append the scene to the container
+      const sceneContainer = document.getElementById('scene-container');
+      sceneContainer.innerHTML = ''; // Clear existing content
+      sceneContainer.appendChild(sceneEl);
+
+      // Open the inspector once the scene is loaded
+      sceneEl.addEventListener('loaded', () => {
+        AFRAME.INSPECTOR.open();
+      });
+    }
+
+    // Save button functionality
+    document.getElementById('save-button').addEventListener('click', function () {
+      const sceneEl = document.querySelector('a-scene');
+      const sceneData = extractSceneData(sceneEl);
+
+      // Save sceneData to IndexedDB under the project
+      const transaction = db.transaction(['projects'], 'readwrite');
+      const objectStore = transaction.objectStore('projects');
+      project.sceneData = sceneData;
+
+      const updateRequest = objectStore.put(project);
+
+      updateRequest.onsuccess = function () {
+        alert('Project saved successfully!');
+      };
+
+      updateRequest.onerror = function () {
+        console.error('Error saving project:', updateRequest.error);
+      };
+    });
+
+    function extractSceneData(sceneEl) {
+      const entities = [];
+      sceneEl.querySelectorAll('a-entity').forEach((entityEl) => {
+        const entityData = {
+          id: entityEl.getAttribute('id'),
+          components: {},
+        };
+
+        // Get all attributes (components)
+        for (const attr of entityEl.attributes) {
+          if (attr.name !== 'id') {
+            entityData.components[attr.name] = attr.value;
+          }
+        }
+        entities.push(entityData);
+      });
+      return { entities };
+    }
+  </script>
+</body>
+</html>
