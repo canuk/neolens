@@ -14,11 +14,11 @@ set :public_folder, 'public'
 
 # Routes
 get '/' do
-  send_file File.join(settings.public_folder, 'index.html')
+  erb :index
 end
 
 get '/aframe' do
-  send_file File.join(settings.public_folder, 'aframe.html')
+  erb :aframe, layout: :aframe_layout
 end
 
 get '/ar-studio' do

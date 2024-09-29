@@ -1,0 +1,30 @@
+<div id="homePage" class="page active">
+    <img src="/icon-192x192.webp" alt="NeoLens Logo" width="96">
+    <div class="app-name">NeoLens</div>
+    <!-- <button class="button" onclick="showPage('lookupPage')">Make/Model Lookup</button> -->
+    <button class="button" onclick="showPage('qrPage')">Scan QR Code</button>
+</div>
+<div id="lookupPage" class="page">
+    <h2>Make/Model Lookup</h2>
+    <p>Lookup functionality coming soon...</p>
+    <button class="button" onclick="showPage('homePage')">Back to Home</button>
+</div>
+<div id="qrPage" class="page">
+    <div id="videoContainer">
+        <video id="qrVideo"></video>
+    </div>
+    <div id="output">No QR Code detected</div>
+    <button class="button" onclick="showPage('homePage')">Back to Home</button>
+</div>
+<div id="chatPage" class="page">
+    <div id="chatMessages"></div>
+    <div id="chatInput">
+        <input type="text" id="messageInput" placeholder="Type your message...">
+        <button id="sendButton"><i class="fas fa-paper-plane"></i></button>
+    </div>
+</div>
+<div id="arPage" class="page">
+    <h2>AR Experience</h2>
+    <p>Click the button below to start the AR experience.</p>
+    <button class="button" onclick="window.location.href='/aframe.html'">Launch AR</button>
+</div>
