@@ -2,7 +2,8 @@
 require 'sinatra'
 require 'json'
 require 'net/http'
-require 'dotenv/load'  # Add this line to load the .env file
+require 'dotenv/load'
+require 'uri'
 
 # Pinecone Assistant chat implementation
 PINECONE_API_KEY = ENV['PINECONE_API_KEY']
@@ -32,6 +33,22 @@ post '/chat' do
   { response: response }.to_json
 end
 
+# New route for proxying PDF requests
+get '/proxy_pdf' do
+  url = params[:url]
+  uri = URI.parse(url)
+
+  response = Net::HTTP.get_response(uri)
+
+  if response.is_a?(Net::HTTPSuccess)
+    content_type 'application/pdf'
+    response.body
+  else
+    status 404
+    "PDF not found"
+  end
+end
+
 # Helper methods
 def query_pinecone_assistant(message)
   uri = URI("https://#{PINECONE_ENVIRONMENT}.pinecone.io/assistant/chat/#{ASSISTANT_NAME}/chat/completions")
@@ -48,7 +65,8 @@ def query_pinecone_assistant(message)
   if response.is_a?(Net::HTTPSuccess)
     result = JSON.parse(response.body)
     if result['choices'] && result['choices'].first && result['choices'].first['message']
-      return result['choices'].first['message']['content']
+      content = result['choices'].first['message']['content']
+      return process_pdf_references(content)
     else
       return 'Unexpected response format from Pinecone API'
     end
@@ -57,6 +75,37 @@ def query_pinecone_assistant(message)
   end
 rescue => e
   return "Error: #{e.message}"
+end
+
+def process_pdf_references(content)
+  pdf_urls = extract_pdf_urls(content)
+
+  # Replace PDF references with links
+  content.gsub!(/\[(\d+),\s*pp\.\s*(\d+(?:-\d+)?)\]/) do |match|
+    doc_index = $1
+    pages = $2
+    if pdf_urls[doc_index]
+      url = pdf_urls[doc_index][:url]
+      name = pdf_urls[doc_index][:name]
+      "<a href=\"/proxy_pdf?url=#{URI.encode_www_form_component(url)}\" class=\"pdf-link\" data-pages=\"#{pages}\" title=\"#{name}\">#{match}</a>"
+    else
+      match
+    end
+  end
+
+  content
+end
+
+def extract_pdf_urls(text)
+  pdf_regex = /(\d+)\.\s+\[(.+?\.pdf)\]\((https?:\/\/[^\s)]+)\)/
+  matches = text.scan(pdf_regex)
+
+  pdf_map = {}
+  matches.each do |index, name, url|
+    pdf_map[index] = { name: name, url: url }
+  end
+
+  pdf_map
 end
 
 # Start the server if this file is run directly

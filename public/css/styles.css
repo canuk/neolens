@@ -1,3 +1,15 @@
+/* Media query for mobile devices */
+@media screen and (max-width: 768px) {
+    body, html {
+        overflow-x: hidden; /* Prevent horizontal scrolling on mobile */
+    }
+
+    .modal-content {
+        margin: 15px 5px; /* Consistent 5px margin on mobile */
+        width: calc(100% - 10px);
+    }
+}
+
 body, html {
     margin: 0;
     padding: 0;
@@ -123,23 +135,44 @@ body, html {
 }
 
 .message {
-    max-width: 70%;
+    max-width: 90%; /* Increased from 70% to 90% */
     margin-bottom: 10px;
     padding: 10px;
-    border-radius: 20px;
     clear: both;
+}
+
+.message p {
+    margin: 5px;
 }
 
 .message.sent {
     background-color: #4285f4;
     color: white;
     float: right;
+    border-radius: 10px 10px 0 10px;
 }
 
 .message.received {
     background-color: #fff;
     color: #333;
     float: left;
+    border-radius: 10px 10px 10px 0;
+    width: 90%; /* Added to make received messages 90% width */
+}
+
+.message.loading {
+    width: auto; /* Changed from fixed width */
+    height: auto; /* Changed from fixed height */
+    max-width: 90%; /* Consistent with other messages */
+    margin-bottom: 10px;
+    padding: 10px;
+    border-radius: 10px;
+    clear: both;    
+    font-style: italic;
+    color: #888;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start; /* Align to the left */
 }
 
 #chatInput {
@@ -205,9 +238,6 @@ body, html {
 color: #ff0000;
 }
 
-/* Existing styles */
-/* ... */
-
 /* Dot Flashing Animation */
 .dot-flashing {
     position: relative;
@@ -218,7 +248,8 @@ color: #ff0000;
     color: #9880ff;
     animation: dot-flashing 1s infinite linear alternate;
     animation-delay: 0.5s;
-  }
+    margin-left: 5px; /* Add some space between text and dots */
+}
   
   .dot-flashing::before, .dot-flashing::after {
     content: '';
@@ -262,9 +293,86 @@ color: #ff0000;
   .message.loading {
     display: flex;
     align-items: center;
-    padding: 10px;
+    padding: 5px;
   }
   
   .message.loading .dot-flashing {
     margin-left: 10px;
   }
+
+  .modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden; /* Changed from auto to hidden */
+    background-color: rgba(0,0,0,0.4);
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: 15px 5px; /* Added 5px horizontal margin */
+    padding: 20px 15px;
+    border: 1px solid #888;
+    width: calc(100% - 10px); /* Adjusted for 5px margins on both sides */
+    max-width: 1200px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box; /* Ensure padding is included in width calculation */
+}
+
+.close {
+    color: #aaa;
+    align-self: flex-end;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close:hover,
+.close:focus {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+#pdfCanvas {
+    width: 100%;
+    height: auto;
+    margin-bottom: 20px;
+}
+
+.pdf-navigation {
+    display: none;  /* Hidden by default */
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.pdf-navigation button {
+    margin: 0 10px;
+    padding: 5px 10px;
+    background-color: #f0f0f0;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.pdf-navigation button:hover {
+    background-color: #e0e0e0;
+}
+
+#pageInfo {
+    margin: 0 10px;
+}
+
+#pdfModalTitle {
+    text-align: center;
+    font-size: 0.8em;
+    color: #666;
+}

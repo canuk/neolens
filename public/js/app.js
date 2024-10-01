@@ -1,7 +1,18 @@
-// app.js
+// Global variables
 let chatHistory = [];
-let canvasElement, canvas;
-let video, outputData, messageInput, sendButton, chatMessages;
+let video, canvasElement, outputData, messageInput, sendButton, chatMessages;
+
+let pdfjsLib = window['pdfjs-dist/build/pdf'];
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.9.359/pdf.worker.min.js';
+
+let pdfDoc = null;
+let pageIndex = 0;
+let pageNumbers = [];
+let pageRendering = false;
+let pageNumPending = null;
+let scale = 2.5;
+let canvas = document.getElementById('pdfCanvas');
+let ctx = canvas.getContext('2d');
 
 // Functions
 function showPage(pageId) {
@@ -119,10 +130,12 @@ async function sendMessage() {
 
             const result = await response.json();
             loadingMessage.remove();
+            
             addMessage(result.response, ['received']);
+            
             setTimeout(() => {
                 addMessage(`<a href='/aframe.html'>Tap to view Augmented Instructions</a>`, 'received');
-            }, 1500);               
+            }, 1500);
         } catch (error) {
             console.error('Error querying Pinecone Assistant:', error);
             loadingMessage.remove();
@@ -153,6 +166,126 @@ function addMessage(text, classes) {
     return messageElement;
 }
 
+function renderPage(index) {
+    pageRendering = true;
+    let num = pageNumbers[index];
+    pdfDoc.getPage(num).then(function(page) {
+        let viewport = page.getViewport({scale: scale});
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        let renderContext = {
+            canvasContext: ctx,
+            viewport: viewport
+        };
+        let renderTask = page.render(renderContext);
+
+        renderTask.promise.then(function() {
+            pageRendering = false;
+            if (pageNumPending !== null) {
+                renderPage(pageNumPending);
+                pageNumPending = null;
+            }
+        });
+    });
+
+    updatePageInfo();
+}
+
+function updatePageInfo() {
+    const pageInfo = document.getElementById('pageInfo');
+    if (pageNumbers.length > 1) {
+        pageInfo.textContent = `Page ${pageNumbers[pageIndex]} of ${pdfDoc.numPages} (${pageIndex + 1}/${pageNumbers.length})`;
+    } else {
+        pageInfo.textContent = `Page ${pageNumbers[pageIndex]} of ${pdfDoc.numPages}`;
+    }
+}
+
+function queueRenderPage(index) {
+    if (pageRendering) {
+        pageNumPending = index;
+    } else {
+        renderPage(index);
+    }
+}
+
+function onPrevPage() {
+    if (pageIndex <= 0) {
+        return;
+    }
+    pageIndex--;
+    queueRenderPage(pageIndex);
+}
+
+function onNextPage() {
+    if (pageIndex >= pageNumbers.length - 1) {
+        return;
+    }
+    pageIndex++;
+    queueRenderPage(pageIndex);
+}
+
+function parsePageReferences(pages) {
+    let pageSet = new Set();
+    pages.split(',').forEach(part => {
+        part = part.trim();
+        if (part.includes('-')) {
+            let [start, end] = part.split('-').map(num => parseInt(num));
+            for (let i = start; i <= end; i++) {
+                pageSet.add(i);
+            }
+        } else {
+            pageSet.add(parseInt(part));
+        }
+    });
+    return Array.from(pageSet).sort((a, b) => a - b);
+}
+
+function openPdfModal(event) {
+    event.preventDefault();
+    const pdfUrl = event.target.href;
+    const pages = event.target.getAttribute('data-pages');
+    const title = event.target.getAttribute('title');
+
+    const modal = document.getElementById('pdfModal');
+    const modalTitle = document.getElementById('pdfModalTitle');
+    const pdfNavigation = document.querySelector('.pdf-navigation');
+    
+    modalTitle.textContent = title;
+    modal.style.display = 'block';
+
+    pageNumbers = parsePageReferences(pages);
+    pageIndex = 0;
+
+    // Show or hide navigation based on number of pages
+    if (pageNumbers.length > 1) {
+        pdfNavigation.style.display = 'flex';
+    } else {
+        pdfNavigation.style.display = 'none';
+    }
+
+    pdfjsLib.getDocument(pdfUrl).promise.then(function(pdfDoc_) {
+        pdfDoc = pdfDoc_;
+        renderPage(pageIndex);
+    });
+}
+
+// Event listeners for navigation buttons
+document.getElementById('prevPage').addEventListener('click', onPrevPage);
+document.getElementById('nextPage').addEventListener('click', onNextPage);
+
+// Close modal functionality
+document.querySelector('.close').onclick = function() {
+    document.getElementById('pdfModal').style.display = "none";
+}
+
+window.onclick = function(event) {
+    let modal = document.getElementById('pdfModal');
+    if (event.target == modal) {
+        modal.style.display = "none";
+    }
+}
+
 // Event Listeners
 document.addEventListener('DOMContentLoaded', function() {
     video = document.getElementById('qrVideo');
@@ -164,12 +297,19 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelector('#footer .fa-home').addEventListener('click', () => showPage('homePage'));
     document.querySelector('#footer .fa-qrcode').addEventListener('click', () => showPage('qrPage'));
     document.querySelector('#footer .fa-comments').addEventListener('click', () => showPage('chatPage'));
-    document.querySelector('#footer .fa-vr-cardboard').addEventListener('click', () => showPage('arPage'));
+    document.querySelector('#footer .fa-vr-cardboard').addEventListener('click', () => window.location.href = '/ar-studio');
 
     sendButton.addEventListener('click', sendMessage);
     messageInput.addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             sendMessage();
+        }
+    });
+
+    // Add event listener for PDF links
+    document.addEventListener('click', function(e) {
+        if (e.target && e.target.classList.contains('pdf-link')) {
+            openPdfModal(e);
         }
     });
 
